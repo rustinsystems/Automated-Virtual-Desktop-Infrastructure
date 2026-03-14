@@ -1,53 +1,74 @@
+# Automated Virtual Desktop Infrastructure (VDI)
+**Engineered by:** Shahied Rustin | Rustin Systems
+
+![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04-E95420?style=for-the-badge&logo=ubuntu&logoColor=white)
+![Ansible](https://img.shields.io/badge/Ansible-Automation-EE0000?style=for-the-badge&logo=ansible&logoColor=white)
+![Bash](https://img.shields.io/badge/Bash-Scripting-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)
+
+## 📌 Project Overview
+This repository contains the Infrastructure-as-Code (IaC) required to provision a bare-metal Linux server into a secure, multi-user Virtual Desktop Infrastructure (VDI). 
+
+Originally architected to support concurrent engineering students requiring remote access to heavy virtualization workloads (VirtualBox/KVM), this deployment bridges the gap between lightweight client machines and enterprise-grade host performance. 
+
+The deployment is fully automated via Ansible, converting a fresh Ubuntu Server installation into an optimized XFCE desktop environment with strict XRDP ingress controls in under 10 minutes.
 
 ---
-# Rustin Systems: Automated Virtual Desktop Infrastructure (VDI)
 
-**Project:** CPUT Engineering Remote Lab Deployment
-
-**Author:** Shahied Rustin
-
-**Date:** 01/02/2026
-
-## 1. System Architecture Overview
-
-This repository contains the Infrastructure-as-Code (IaC) required to provision a bare-metal Ubuntu server into a multi-user Virtual Desktop Infrastructure (VDI). The system is designed to allow concurrent engineering students to run a fully functional and controlled Linux workstation environment. Readily optimised for heavy virtualization workloads such as VirtualBox and KVM remotely via lightweight client machines.
-
-**Key Engineering Features:**
-
-* **Automated Provisioning:** Idempotent Ansible playbook (`setup_node.yml`) configures the host from a baseline Ubuntu Server install to a fully optimized XFCE desktop environment in under 10 minutes.
-* **Kernel Management:** Automatically purges incompatible kernels and locks the GRUB bootloader to the stable 6.8 baseline to ensure hypervisor compatibility and hardened security.
-* **Default Student Image Cloning:** Uses Linux skeleton directories (`/etc/skel`) to automatically generate standardized, restricted desktop environments (pre-pinned apps, shared directories, custom wallpaper) upon user creation.
+## ⚙️ Key Engineering Features
+* **Idempotent Provisioning:** Ansible playbooks handle the complete lifecycle from repository injections (Brave, Oracle) to package installations and configuration locking.
+* **Kernel Management:** Automatically purges incompatible kernels and locks the GRUB bootloader to a stable release to ensure hypervisor compatibility and security.
+* **Student Image Desktop Cloning:** Utilizes `/etc/skel` to automatically generate standardized, restricted environments (pre-pinned apps, read-only shared directories, custom wallpapers) upon user creation.
+* **XRDP Monitor Override:** Custom `.xsession` scripting to bypass the notorious XRDP virtual monitor bug, guaranteeing consistent UI rendering across dynamic RDP sessions.
 * **Security Hardening:** Implements UFW (Uncomplicated Firewall) locked to ports 22 and 3389, backed by Fail2ban to automatically block SSH brute-force attempts.
+* **CLI Lifecycle Management:** Includes a custom Bash utility (`manage_lab_users.sh`) for rapid, error-free student onboarding and automated group permission assignment.
 
 ---
 
-## 2. Local Testing & Deployment Guide
+## ⚠️ Disclaimer & Maintenance Notice
+This Infrastructure-as-Code (IaC) deployment was engineered and tested specifically for **Ubuntu 24.04 LTS**. 
+* **Kernel Pinning:** To ensure strict compatibility with VirtualBox 7.0 at the time of development, this playbook includes a hardcoded task to purge the `6.17.*` kernel line and lock GRUB to the stable `6.8` baseline. As Canonical releases new kernels, or as VirtualBox updates its compatibility matrix, these specific package targets in `setup_node.yml` may need to be manually updated by the maintainer.
+* **Provided "As-Is":** This architecture is provided as an open-source reference. Please review the playbook and test in a sandbox environment before deploying to production.
 
-**Prerequisites:**
+---
 
+## 📚 Extended Documentation
+For detailed guides on operating the server and engineering the network ingress, refer to the included documentation:
+* [📖 Quick Start Guide](lquickstart.md) - A step-by-step manual for faculty to deploy the server on a local subnet, verify RDP connections, and generate student accounts.
+* [ARCHITECTURE](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/ARCHITECTURE.md) - An advisory brief with details for Enterprise Remote Access options (VLAN, Cloudflare Zero Trust, FRP)
+
+---
+
+## 🚀 Setup & Deployment
+
+### Prerequisites
 1. A physical machine or VM running a fresh installation of Ubuntu Server 24.04.
-2. An active internet connection on the server.
-3. An Admin account created during OS installation (e.g., `server1`) with OpenSSH installed.
+2. An Admin account with `sudo` privileges and OpenSSH installed.
+3. Ansible installed on your local control node.
 
-**Step-by-Step Deployment:**
+### Deployment Steps
 
-1. Boot the server on your local test network (or portable router) and find its IP address by running `ip a` or `hostname -I` on debian.
-2. On your control machine (your laptop), open the `hosts.ini` file.
-3. Update the IP address and admin username to match your test server:
+1. Clone this repository to your local control node:
+```bash
+git clone [https://github.com/yourusername/Automated-Virtual-Desktop-Infrastructure.git](https://github.com/yourusername/Automated-Virtual-Desktop-Infrastructure.git)
+cd Automated-Virtual-Desktop-Infrastructure
+```
+
+2. Update the `hosts.ini` file with your target server's IP address and admin username:
+
 ```ini
 [lab_servers]
 node1 ansible_host=192.168.X.X ansible_user=your_admin_username
-
 ```
 
 
-4. Run the Ansible playbook:
+3. Run the Ansible playbook:
 ```bash
 ansible-playbook -i hosts.ini setup_node.yml -K
 
 ```
 
-*(The `-K` flag will prompt you for the server's sudo password).*
+*(The `-K` flag will prompt you for the remote server's sudo password).*
 
 If the server is configured with a password login:
 ```bash
@@ -55,55 +76,35 @@ ansible-playbook -i hosts.ini setup_node.yml -k -K
 ```
 *(The `-k` flag will prompt you for the remote server's SSH password).*
 
-
-5. Once Ansible finishes, reboot the server. The VDI is now ready for users.
+4. Once the playbook completes successfully, reboot the target server.
 
 ---
 
-## 3. Daily Operations: Lab User Management
+## 🛠️ Daily Operations: User Management
 
-Once the server is deployed, faculty can manage student access using the custom CLI tool, which automates user creation, virtualization permissions, and directory linking.
+Once the VDI is deployed, administrators can manage user access via the integrated CLI tool.
 
-To launch the tool, log into the server and run:
+Log into the server terminal and execute:
 
 ```bash
 sudo manage_lab_users
 
 ```
 
-**Menu Options:**
+**Features:**
 
-* **1. Add a new student:** Prompts for a username (e.g., `student1`). It creates the account, assigns them strictly to the `vboxusers` group, and clones the Default Student Image desktop. The default password will be set to `CputLab2026!`. *Note: Instruct students to open the terminal and type `passwd` to change this upon first login.*
-* **2. Remove a student:** Instantly deletes the student account and completely wipes their isolated home directory to free up disk space.
-* **3. List current students:** Displays all active student accounts currently provisioned on the machine.
-
-**Shared Lab Files:**
-Admins can place course materials, ISOs, or PDFs into `/opt/shared_lab_files/`. Students have a shortcut to this folder on their desktop with Read-Only access.
+* **Add a new user:** Automatically provisions an isolated home directory, assigns virtualization groups (`vboxusers`), clones the Student Image desktop, and generates a default password.
+* **Remove a user:** Instantly purges the account and wipes the isolated directory to free up disk space.
+* **List active users:** Displays all currently provisioned standard accounts.
 
 ---
 
-## 4. Remote Connection Options
+## 🔒 Security & Ingress
 
-To allow students to connect to this server from off-campus, the university IT department can utilize one of the following ingress architectures, listed in order of preference:
-
-### Option A: Internal VLAN + Existing Student VPN (Recommended)
-
-* **How it works:** The server is placed on an internal campus VLAN. Students log into the existing university VPN from home, then open their standard Remote Desktop (RDP) client and connect to the server's internal IP.
-* **Pros:** Zero new edge-security risks; utilizes existing IT authentication protocols.
-
-### Option B: Edge Port Forwarding (NAT)
-
-* **How it works:** IT assigns the server a static internal IP and creates a firewall rule translating an external public IP/Port to the internal server on TCP Port 3389 (XRDP).
-* **Pros:** Students do not need a VPN client.
-* **Security Note:** The server is already hardened with UFW and Fail2ban, but port-forwarding RDP directly to the internet is generally discouraged without IP whitelisting.
-
-### Option C: Cloudflare Zero Trust (SD-WAN / Overlay Network)
-
-* **How it works:** If campus firewalls cannot be modified, a lightweight daemon (`cloudflared`) is installed on the server. It makes a secure, outbound connection to Cloudflare on TCP 443 (HTTPS), bypassing inbound NAT restrictions. Students use the Cloudflare WARP client to access the private routing tunnel.
-* **Pros:** Does not require university firewall changes; provides Zero-Trust logging and modern identity verification (SSO/Email OTP).
+This deployment is designed to sit behind an enterprise firewall or VPN. For networks with strict inbound NAT restrictions, it is highly recommended to pair this deployment with an outbound Zero Trust overlay (such as a **Cloudflare Tunnel** or a **Fast Reverse Proxy (FRP)**) to allow secure remote RDP access without opening edge firewall ports.
 
 ---
 
-*System engineered by Shahied Rustin | Rustin Systems | www.rustinsystems.com*
+## 📄 License
 
----
+This project is licensed under the MIT License - see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
