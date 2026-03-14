@@ -34,7 +34,7 @@ This Infrastructure-as-Code (IaC) deployment was engineered and tested specifica
 
 ## 📚 Extended Documentation
 For detailed guides on operating the server and engineering the network ingress, refer to the included documentation:
-* [📖 Quick Start Guide](lquickstart.md) - A step-by-step manual for faculty to deploy the server on a local subnet, verify RDP connections, and generate student accounts.
+* [📖 Quick Start Guide](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/Quick%20Start%20Guide.md) - A step-by-step manual for faculty to deploy the server on a local subnet, verify RDP connections, and generate student accounts.
 * [ARCHITECTURE](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/ARCHITECTURE.md) - An advisory brief with details for Enterprise Remote Access options (VLAN, Cloudflare Zero Trust, FRP)
 
 ---
