@@ -1,48 +1,81 @@
 ---
-# This script was made by Rustin Systems
-- name: CPUT Remote Lab Setup
+- name: CPUT Remote Lab Setup (Ubuntu 24.04 VDI)
   hosts: lab_servers
-  become: yes # SUDO PRIVILEGES
+  become: true
+
+  vars:
+    # Compatibility baseline (adjust as VirtualBox/kernel compatibility evolves)
+    supported_ubuntu_release: "noble"
+    virtualbox_version: "7.0"
+    allowed_tcp_ports:
+      - "22"
+      - "3389"
+
+  pre_tasks:
+    - name: Validate Ubuntu release
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+          - ansible_distribution_release == supported_ubuntu_release
+        fail_msg: >
+          This playbook is tested for Ubuntu 24.04 ({{ supported_ubuntu_release }}) only.
+          Current target: {{ ansible_distribution }} {{ ansible_distribution_release }}.
 
   tasks:
-    # 1. CLEANUP
-    - name: Remove light-locker to prevent xrdp warnings
-      apt:
+    # 1) CLEANUP
+    - name: Remove light-locker to prevent XRDP warnings
+      ansible.builtin.apt:
         name: light-locker
         state: absent
+        purge: true
 
-    - name: Remove Firefox Snap package to prevent snap error
+    - name: Remove Firefox snap package (if present)
       community.general.snap:
         name: firefox
         state: absent
+      failed_when: false
 
-    # 2. REPOSITORIES (Brave & Oracle)
+    # 2) REPOSITORIES
+    - name: Install apt prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gpg
+          - wget
+          - software-properties-common
+        state: present
+        update_cache: true
+
     - name: Download Brave Browser GPG key
-      get_url:
+      ansible.builtin.get_url:
         url: https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
         dest: /usr/share/keyrings/brave-browser-archive-keyring.gpg
-        mode: '0644'
+        mode: "0644"
 
     - name: Add Brave repository
-      apt_repository:
+      ansible.builtin.apt_repository:
         repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main"
         filename: brave-browser-release
         state: present
 
-    - name: Download Oracle VirtualBox GPG key
-      shell: wget -O- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg
+    - name: Download Oracle VirtualBox GPG key (dearmored)
+      ansible.builtin.shell: |
+        set -o pipefail
+        wget -qO- https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor --yes --output /usr/share/keyrings/oracle-virtualbox-2016.gpg
       args:
+        executable: /bin/bash
         creates: /usr/share/keyrings/oracle-virtualbox-2016.gpg
 
     - name: Add Oracle VirtualBox repository
-      apt_repository:
+      ansible.builtin.apt_repository:
         repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/oracle-virtualbox-2016.gpg] https://download.virtualbox.org/virtualbox/debian {{ ansible_distribution_release }} contrib"
         filename: virtualbox
         state: present
 
-    # 3. KERNEL DOWNGRADE & INSTALLATIONS
+    # 3) PACKAGES
     - name: Update apt cache and install core packages
-      apt:
+      ansible.builtin.apt:
         name:
           - xrdp
           - xfce4
@@ -51,160 +84,145 @@
           - dkms
           - linux-image-generic
           - linux-headers-generic
-          - virtualbox-7.0
+          - "virtualbox-{{ virtualbox_version }}"
           - brave-browser
+          - ufw
+          - fail2ban
         state: present
-        update_cache: yes
+        update_cache: true
 
-    # 3.5 KERNEL DOWNGRADE (For kernel 6.17)
-    - name: Purge the incompatible 6.17 kernel and its headers
-      apt:
-        name:
-          - 'linux-image-6.17.*'
-          - 'linux-headers-6.17.*'
-          - 'linux-modules-6.17.*'
-        state: absent
-        purge: yes
-      notify: update grub
+    # - name: Purge incompatible kernel line (current kernel as of 02FEB2026) 
+    #   ansible.builtin.apt:
+    #     name:
+    #       - 'linux-image-6.17.*'
+    #       - 'linux-headers-6.17.*'
+    #       - 'linux-modules-6.17.*'
+    #     state: absent
+    #     purge: true
+    #   notify: update grub
 
-    # 4. GRUB BOOTLOADER LOCK (Kernel Pin)
-    - name: Configure GRUB to save the default kernel selection
-      lineinfile:
+    # 4) GRUB BASELINE (safe defaults; manual kernel pinning can be done post-boot validation)
+    - name: Configure GRUB defaults
+      ansible.builtin.lineinfile:
         path: /etc/default/grub
         regexp: "^{{ item.key }}="
         line: "{{ item.key }}={{ item.value }}"
       loop:
-        - { key: 'GRUB_DEFAULT', value: 'saved' }
-        - { key: 'GRUB_SAVEDEFAULT', value: 'true' }
-        - { key: 'GRUB_TIMEOUT', value: '5' }
+        - { key: "GRUB_DEFAULT", value: "saved" }
+        - { key: "GRUB_SAVEDEFAULT", value: "true" }
+        - { key: "GRUB_TIMEOUT", value: "5" }
       notify: update grub
 
-    # 5. BROWSER CONFIGURATION (Keyring removal)
-    - name: Fix Brave keyring issue in desktop shortcut
-      lineinfile:
+    # 5) BRAVE DESKTOP ENTRY
+    - name: Set Brave password store arg in desktop launcher
+      ansible.builtin.lineinfile:
         path: /usr/share/applications/brave-browser.desktop
-        regexp: '^Exec=/usr/bin/brave-browser-stable %U'
+        regexp: '^Exec=/usr/bin/brave-browser-stable.*'
         line: 'Exec=/usr/bin/brave-browser-stable --password-store=basic %U'
-        backrefs: yes
 
-    # 6. SHARED DIRECTORY
-    - name: Create shared directory for ISOs and Lab Files
-      file:
+    # 6) SHARED DIRECTORY
+    - name: Create shared directory for ISOs and lab files
+      ansible.builtin.file:
         path: /opt/shared_lab_files
         state: directory
-        mode: '0775'
         owner: root
-        group: sudo   # Grants write access to all admin accounts
+        group: sudo
+        mode: "0775"
 
-    # - name: Copy Ubuntu Server ISO (UNCOMMENT FOR ISO COPY, HAVE THE ISO IN THE ROOT DIRECTORY)
-    #   copy:
-    #     src: ubuntu-24.04.4-desktop-amd64.iso
-    #     dest: /opt/shared_lab_files/ubuntu-server-24.04.iso
-    #     owner: root
-    #     group: sudo
-    #     mode: '0664'
-
-    # 7. DEFAULT XFCE & XRDP SETTINGS
-    - name: Copy CPUT wallpaper to global backgrounds
-      copy:
+    # 7) SKELETON PROFILE + XRDP/XFCE DEFAULTS
+    - name: Copy CPUT wallpaper
+      ansible.builtin.copy:
         src: cputwallpaper.png
         dest: /usr/share/backgrounds/cputwallpaper.png
         owner: root
         group: root
-        mode: '0644'
+        mode: "0644"
 
     - name: Ensure /etc/skel/.config exists
-      file:
+      ansible.builtin.file:
         path: /etc/skel/.config
         state: directory
         owner: root
         group: root
-        mode: '0755'
+        mode: "0755"
 
-    - name: Copy XFCE configuration to Skeleton Directory
-      copy:
+    - name: Copy XFCE config to /etc/skel
+      ansible.builtin.copy:
         src: xfce4/
         dest: /etc/skel/.config/xfce4/
         owner: root
         group: root
-        mode: '0755'
-        directory_mode: '0755'
+        mode: "0755"
+        directory_mode: "0755"
 
-    - name: Copy xrdp session trigger to Skeleton Directory
-      copy:
+    - name: Copy .xsession to /etc/skel
+      ansible.builtin.copy:
         src: .xsession
         dest: /etc/skel/.xsession
         owner: root
         group: root
-        mode: '0644'
+        mode: "0644"
 
-    # 7.5 THE DEFAULT STUDENT IMAGE (Pin Apps and Shared Folder to Desktop)
-    - name: Ensure Desktop folder exists in Skeleton
-      file:
+    - name: Ensure /etc/skel/Desktop exists
+      ansible.builtin.file:
         path: /etc/skel/Desktop
         state: directory
         owner: root
         group: root
-        mode: '0755'
+        mode: "0755"
 
-    - name: Pin Brave Browser to Desktop
-      copy:
+    - name: Pin Brave browser to desktop
+      ansible.builtin.copy:
         src: /usr/share/applications/brave-browser.desktop
         dest: /etc/skel/Desktop/brave-browser.desktop
-        remote_src: yes
+        remote_src: true
         owner: root
         group: root
-        mode: '0755'
+        mode: "0755"
 
-    - name: Pin VirtualBox to Desktop
-      copy:
+    - name: Pin VirtualBox to desktop
+      ansible.builtin.copy:
         src: /usr/share/applications/virtualbox.desktop
         dest: /etc/skel/Desktop/virtualbox.desktop
-        remote_src: yes
+        remote_src: true
         owner: root
         group: root
-        mode: '0755'
+        mode: "0755"
 
-    - name: Pin Shared Folder to Desktop
-      file:
+    - name: Pin shared folder to desktop
+      ansible.builtin.file:
         src: /opt/shared_lab_files
         dest: /etc/skel/Desktop/Shared_Lab_Files
         state: link
 
-    # 8. MANAGEMENT TOOLS
-    - name: Install Rustin Systems Lab Manager tool
-      copy:
+    # 8) MANAGEMENT TOOL
+    - name: Install lab manager CLI
+      ansible.builtin.copy:
         src: manage_lab_users.sh
         dest: /usr/local/bin/manage_lab_users
         owner: root
         group: root
-        mode: '0755'
+        mode: "0755"
 
-    # 9. SECURITY MEASURES (UFW AND FAIL2BAN)
-    - name: Install Security Packages (UFW & Fail2ban)
-      apt:
-        name:
-          - ufw
-          - fail2ban
-        state: present
-
-    - name: Configure UFW to allow SSH and XRDP
-      ufw:
+    # 9) SECURITY BASELINE
+    - name: Allow SSH and XRDP via UFW
+      community.general.ufw:
         rule: allow
         port: "{{ item }}"
         proto: tcp
-      loop:
-        - '22'    # Standard SSH port
-        - '3389'  # Standard XRDP port
+      loop: "{{ allowed_tcp_ports }}"
 
-    - name: Enable UFW Firewall
-      ufw:
+    - name: Enable UFW (deny incoming by default)
+      community.general.ufw:
         state: enabled
         policy: deny
 
-    - name: Configure Fail2ban to mitigate SSH Brute Force attacks
-      copy:
+    - name: Configure Fail2ban for SSH
+      ansible.builtin.copy:
         dest: /etc/fail2ban/jail.local
+        owner: root
+        group: root
+        mode: "0644"
         content: |
           [sshd]
           enabled = true
@@ -217,9 +235,10 @@
 
   handlers:
     - name: update grub
-      command: update-grub
+      ansible.builtin.command: update-grub
+      changed_when: true
 
     - name: restart fail2ban
-      service:
+      ansible.builtin.service:
         name: fail2ban
         state: restarted
