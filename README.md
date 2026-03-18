@@ -148,8 +148,8 @@ This platform is designed for private/internal access patterns.
 ---
 
 ## 📚 Extended Documentation
-- [📖 Quick Start Guide](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/Quick%20Start%20Guide.md)
-- [ARCHITECTURE](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/ARCHITECTURE.md)
+- [📖 Quick Start Guide](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/docs/Quick%20Start%20Guide.md)
+- [ARCHITECTURE](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/docs/ARCHITECTURE.md)
 
 ---
 
