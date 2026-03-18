@@ -50,7 +50,7 @@ For detailed guides on operating the server and engineering the network ingress,
 
 1. Clone this repository to your local control node:
 ```bash
-git clone [https://github.com/yourusername/Automated-Virtual-Desktop-Infrastructure.git](https://github.com/yourusername/Automated-Virtual-Desktop-Infrastructure.git)
+git clone https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure.git
 cd Automated-Virtual-Desktop-Infrastructure
 ```
 
@@ -107,4 +107,4 @@ This deployment is designed to sit behind an enterprise firewall or VPN. For net
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](https://www.google.com/search?q=LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/rustinsystems/Automated-Virtual-Desktop-Infrastructure/blob/main/LICENSE) file for details.
