@@ -6,6 +6,9 @@
 ![Bash](https://img.shields.io/badge/Bash-Scripting-4EAA25?style=for-the-badge&logo=gnu-bash&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)
 
+## Student remote view
+<img width="1438" height="857" alt="studentHomeScreen" src="https://github.com/user-attachments/assets/32e53a9b-8da0-438a-a08a-7019dbd4c29b" />
+
 ## 📌 Impact at a Glance
 This project automates the provisioning of a fresh Ubuntu 24.04 server into a secure, multi-user VDI node for student engineering labs.
 
